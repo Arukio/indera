@@ -84,16 +84,25 @@ export const executeBot = async ({ targetAddress, ctx, amountIn, executeTrade }:
     ctx.log(`Slippage       : 100% `)
     ctx.log(`Gas price      : ${gasPrice} gwei`)
 
-    const tx = await router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-      parseEther(String(amountIn)),
-      amountOutMin,
-      [WBNB_ADDRESS, targetAddress],
-      wallet.address,
-      Date.now() + 1000 * 60 * 5,
-      {
-        gasPrice: BigNumber.from('10000000000'),
-      }
-    )
+    const tx = await router
+      .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        parseEther(String(amountIn)),
+        amountOutMin,
+        [WBNB_ADDRESS, targetAddress],
+        wallet.address,
+        Date.now() + 1000 * 60 * 5,
+        {
+          gasPrice: BigNumber.from('10000000000'),
+        }
+      )
+      .catch(async (error: Error) => {
+        ctx.log(`ERROR : ${error.message}`)
+        const retry = await cli.prompt('Retry execute?', { default: 'y' })
+
+        if (retry === 'y') {
+          await executeBuy()
+        }
+      })
 
     const receipt = await tx.wait()
     cli.url(
