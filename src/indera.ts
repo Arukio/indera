@@ -4,13 +4,13 @@ config()
 
 import Command from '@oclif/command'
 import cli from 'cli-ux'
-import { constants, Contract, providers, Wallet } from 'ethers'
+import { BigNumber, constants, Contract, providers, Wallet } from 'ethers'
+import { formatEther, parseEther } from 'ethers/lib/utils'
 import { FACTORY_ADDRESS, MIN_LIQUIDITY, ROUTER_ADDRESS, RPC_URL, WBNB_ADDRESS } from './constants'
 
 import BEP20 from './abis/BEP20.json'
 import PancakeFactory from './abis/PancakeFactory.json'
 import PancakeRouter from './abis/PancakeRouter.json'
-import { formatEther, parseEther, parseUnits } from 'ethers/lib/utils'
 
 const provider = new providers.JsonRpcProvider(RPC_URL)
 const wallet = new Wallet(process.env.PRIVATE_KEY as string, provider)
@@ -27,6 +27,16 @@ export const executeBot = async ({ targetAddress, ctx, amountIn, executeTrade }:
   //   const target = new Contract(targetAddress, BEP20, wallet)
   const router = new Contract(ROUTER_ADDRESS, PancakeRouter, wallet)
   const factory = new Contract(FACTORY_ADDRESS, PancakeFactory, wallet)
+
+  cli.action.start('Fetching wallet Balance')
+  const balance = await wbnb.balanceOf(wallet.address)
+  cli.action.stop()
+
+  ctx.log(`WBNB Balance : ${formatEther(balance)}`)
+
+  if (balance.lt(parseEther(String(amountIn)))) {
+    ctx.log('Balance is not enough for executing trade!')
+  }
 
   //   ctx.log('Finding Pair...')
   cli.action.start('Finding Pair')
@@ -56,7 +66,6 @@ export const executeBot = async ({ targetAddress, ctx, amountIn, executeTrade }:
       cli.action.stop()
 
       ctx.log(`Liquidity : ${Number(formatEther(pairLiquidity)).toFixed(4)} BNB`)
-      ctx.log('Preparing for execute trade...')
     }
 
     await checkLiquidity()
@@ -82,7 +91,7 @@ export const executeBot = async ({ targetAddress, ctx, amountIn, executeTrade }:
       wallet.address,
       Date.now() + 1000 * 60 * 5,
       {
-        gasPrice: parseUnits(String(gasPrice), 9),
+        gasPrice: BigNumber.from('10000000000'),
       }
     )
 
@@ -93,7 +102,16 @@ export const executeBot = async ({ targetAddress, ctx, amountIn, executeTrade }:
     )
   }
 
-  if (!executeTrade) return
+  if (!executeTrade) {
+    return
+  }
+
+  ctx.log('Preparing for execute trade...')
+
+  if (balance.lt(parseEther(String(amountIn)))) {
+    ctx.log('Balance is not enough for executing trade!')
+    return
+  }
 
   await executeBuy()
 }
