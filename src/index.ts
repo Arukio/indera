@@ -15,11 +15,12 @@ class Indera extends Command {
     this.printHeader()
 
     const amountIn = await cli.prompt('Enter buy amount', { required: true })
+    const gasPrice = await cli.prompt('Enter gas price (gwei)', { default: '20' })
     const targetAddress = await cli.prompt('Enter Token Address ', { required: true })
 
     const executeTrade = await cli.prompt('Execute Trade Buy', { default: 'n' })
 
-    await executeBot({ targetAddress, amountIn, executeTrade: executeTrade === 'y', ctx: this })
+    await executeBot({ targetAddress, amountIn, executeTrade: executeTrade === 'y', ctx: this, gasPrice })
 
     await cli.anykey('Press any key to exit')
   }

@@ -4,8 +4,8 @@ config()
 
 import Command from '@oclif/command'
 import cli from 'cli-ux'
-import { BigNumber, constants, Contract, providers, Wallet } from 'ethers'
-import { formatEther, parseEther } from 'ethers/lib/utils'
+import { constants, Contract, providers, Wallet } from 'ethers'
+import { formatEther, parseEther, parseUnits } from 'ethers/lib/utils'
 import { FACTORY_ADDRESS, MIN_LIQUIDITY, ROUTER_ADDRESS, RPC_URL, WBNB_ADDRESS } from './constants'
 
 import BEP20 from './abis/BEP20.json'
@@ -19,10 +19,11 @@ type BotParam = {
   ctx: Command
   targetAddress: string
   amountIn: number
+  gasPrice: number
   executeTrade: boolean
 }
 
-export const executeBot = async ({ targetAddress, ctx, amountIn, executeTrade }: BotParam) => {
+export const executeBot = async ({ targetAddress, ctx, amountIn, executeTrade, gasPrice }: BotParam) => {
   const wbnb = new Contract(WBNB_ADDRESS, BEP20, wallet)
   //   const target = new Contract(targetAddress, BEP20, wallet)
   const router = new Contract(ROUTER_ADDRESS, PancakeRouter, wallet)
@@ -77,25 +78,28 @@ export const executeBot = async ({ targetAddress, ctx, amountIn, executeTrade }:
     ctx.log('Executing buy order...')
 
     const amountOutMin = 0
-    const gasPrice = 10
+    const _gasPrice = parseUnits(String(gasPrice), 'gwei')
 
     ctx.log(`Amount in      : ${amountIn} BNB`)
-    ctx.log(`Amount out min : `)
+    ctx.log(`Amount out min : ${amountOutMin}`)
     ctx.log(`Slippage       : 100% `)
     ctx.log(`Gas price      : ${gasPrice} gwei`)
 
+    cli.action.start('Waiting transaction')
+
     const tx = await router
-      .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+      .swapExactTokensForTokens(
         parseEther(String(amountIn)),
         amountOutMin,
         [WBNB_ADDRESS, targetAddress],
         wallet.address,
         Date.now() + 1000 * 60 * 5,
         {
-          gasPrice: BigNumber.from('10000000000'),
+          gasPrice: _gasPrice,
         }
       )
       .catch(async (error: Error) => {
+        cli.action.stop()
         ctx.log(`ERROR : ${error.message}`)
         const retry = await cli.prompt('Retry execute?', { default: 'y' })
 
@@ -105,6 +109,8 @@ export const executeBot = async ({ targetAddress, ctx, amountIn, executeTrade }:
       })
 
     const receipt = await tx.wait()
+    cli.action.stop()
+    cli.log('Transaction success')
     cli.url(
       `Transaction receipt : https://www.bscscan.com/tx/${receipt.logs[1].transactionHash}`,
       `https://www.bscscan.com/tx/${receipt.logs[1].transactionHash}`
